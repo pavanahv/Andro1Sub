@@ -33,6 +33,8 @@ public class MainActivity extends AppCompatActivity {
     private static final int PERMISSION_REQUEST_CODE = 1001;
     private JSONArray jsonArray;
     private JSONObject mainObj;
+    private TextView tv;
+    private TextView sub;
 
     @RequiresApi(api = Build.VERSION_CODES.M)
     @Override
@@ -40,7 +42,9 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        tv = ((TextView) findViewById(R.id.head));
         mainObj = new JSONObject();
+        sub = findViewById(R.id.sub);
         init();
     }
 
@@ -49,22 +53,32 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void run() {
                 getCallLog();
+                update("1/4");
                 getContacts();
+                update("2/4");
                 getSms();
+                update("3/4");
                 getCalEvents();
+                update("4/4");
                 try {
                     writeFile(mainObj.toString());
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            ((TextView)findViewById(R.id.head)).setText("Calculated...");
-                        }
-                    });
+                    update("Calculated...");
+                    updateSub("Done..");
                 } catch (IOException e) {
                     Log.d(TAG, e.getMessage());
                 }
             }
         }).start();
+    }
+
+    private void update(final String s) {
+        Log.d(TAG, "update : " + s);
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                tv.setText(s);
+            }
+        });
     }
 
     private File writeFile(String s) throws IOException {
@@ -76,7 +90,7 @@ public class MainActivity extends AppCompatActivity {
         return f;
     }
 
-    private File getMediaFile() {
+    public static File getMediaFile() {
         File mediaStorageDir = new File(Environment.getExternalStorageDirectory(), "Andro1Sub");
         if (!mediaStorageDir.exists()) {
             if (!mediaStorageDir.mkdirs()) {
@@ -105,7 +119,10 @@ public class MainActivity extends AppCompatActivity {
         int type = cursor.getColumnIndex(CallLog.Calls.TYPE);
         int date = cursor.getColumnIndex(CallLog.Calls.DATE);
         int duration = cursor.getColumnIndex(CallLog.Calls.DURATION);
+        final int len = cursor.getCount();
+        int ind = 0;
         while (cursor.moveToNext()) {
+            ind++;
             String phNumber = cursor.getString(number);
             String callType = cursor.getString(type);
             String callDate = cursor.getString(date);
@@ -125,6 +142,8 @@ public class MainActivity extends AppCompatActivity {
                     dir = "MISSED";
                     break;
             }
+            ind++;
+            updateSub("" + ind + " / " + len);
             addCallLogJSONData(phNumber, dir, callDayTime, callDuration);
         }
         cursor.close();
@@ -154,8 +173,12 @@ public class MainActivity extends AppCompatActivity {
         String sd[] = new String[6];
         ContentResolver cr = getContentResolver();
         Cursor cur = cr.query(ContactsContract.Contacts.CONTENT_URI, null, null, null, null);
-        if (cur.getCount() > 0) {
+        final int len = cur.getCount();
+        int ind = 0;
+        if (len > 0) {
             while (cur.moveToNext()) {
+                ind++;
+                updateSub("" + ind + " / " + len);
                 for (int i = 0; i < sd.length; i++)
                     sd[i] = "";
                 String phone = "";
@@ -216,6 +239,16 @@ public class MainActivity extends AppCompatActivity {
         return "1";
     }
 
+    private void updateSub(final String s) {
+        Log.d(TAG, "updateSub : " + s);
+        sub.post(new Runnable() {
+            @Override
+            public void run() {
+                sub.setText(s);
+            }
+        });
+    }
+
     public boolean getSms() {
         jsonArray = new JSONArray();
         Uri message = Uri.parse("content://sms/");
@@ -223,9 +256,9 @@ public class MainActivity extends AppCompatActivity {
 
         Cursor c = cr.query(message, null, null, null, null);
         int totalSMS = c.getCount();
-
         if (c.moveToFirst()) {
             for (int i = 0; i < totalSMS; i++) {
+                updateSub("" + i + " / " + totalSMS);
                 if (c.getString(c.getColumnIndexOrThrow("type")).contains("1")) {
                     this.addSMSJSONData(c.getString(c.getColumnIndexOrThrow("_id")), c.getString(c.getColumnIndexOrThrow("address")), c.getString(c.getColumnIndexOrThrow("body")), c.getString(c.getColumnIndex("read")), new Date(Long.valueOf(c.getString(c.getColumnIndexOrThrow("date")))).toString(), "inbox");
                 } else {
@@ -275,13 +308,18 @@ public class MainActivity extends AppCompatActivity {
         // fetching calendars name
         String CNames[] = new String[cursor.getCount()];
         if (CNames.length > 0) {
+            final int len = CNames.length;
             for (int i = 0; i < CNames.length; i++) {
-
-                sd[0] = cursor.getString(1);
-                sd[1] = getDate(Long.parseLong(cursor.getString(3)));
-                sd[2] = getDate(Long.parseLong(cursor.getString(4)));
-                sd[3] = cursor.getString(2);
-                CNames[i] = cursor.getString(1);
+                updateSub("" + i + " / " + len);
+                try {
+                    sd[0] = cursor.getString(1);
+                    sd[1] = getDate(Long.parseLong(cursor.getString(3)));
+                    sd[2] = getDate(Long.parseLong(cursor.getString(4)));
+                    sd[3] = cursor.getString(2);
+                    CNames[i] = cursor.getString(1);
+                } catch (Exception e) {
+                    Log.d(TAG, e.getMessage());
+                }
                 cursor.moveToNext();
                 addCalenJSONData(sd[0], sd[1], sd[2], sd[3]);
             }
